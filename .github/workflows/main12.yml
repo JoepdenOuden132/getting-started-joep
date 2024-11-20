@@ -1,0 +1,54 @@
+
+on:
+  push:
+    branches:
+      - main
+
+name: GettingStarted_Container_Workflow
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      # Checkout de repository
+      - name: 'Checkout GitHub Action'
+        uses: actions/checkout@v3
+
+      # Login via Azure CLI
+      - name: 'Login via Azure CLI'
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      # Build en push de Docker image
+      - name: 'Build and push image'
+        uses: azure/docker-login@v1
+        with:
+          login-server: ${{ secrets.REGISTRY_LOGIN_SERVER }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+      - run: |
+          docker build . -t ${{ secrets.REGISTRY_LOGIN_SERVER }}/${{ secrets.REPOSITORY_NAME }}:${{ github.run_number }}
+          docker push ${{ secrets.REGISTRY_LOGIN_SERVER }}/${{ secrets.REPOSITORY_NAME }}:${{ github.run_number }}
+      # Deploy naar Azure Container Instances
+      - name: 'Deploy to Azure Container Instances'
+        uses: azure/aci-deploy@v1
+        with:
+          resource-group: ${{ secrets.RESOURCE_GROUP }}
+          dns-name-label: ${{ secrets.RESOURCE_GROUP }}-${{ github.run_number }}
+          image: ${{ secrets.REGISTRY_LOGIN_SERVER }}/${{ secrets.REPOSITORY_NAME }}:${{ github.run_number }}
+          registry-login-server: ${{ secrets.REGISTRY_LOGIN_SERVER }}
+          registry-username: ${{ secrets.REGISTRY_USERNAME }}
+          registry-password: ${{ secrets.REGISTRY_PASSWORD }}
+          name: getting-started-github
+          location: 'swedencentral'
+          ports: '3000'
+          environment-variables: |
+            STORAGE_ACCOUNT_NAME=${{ secrets.STORAGE_ACCOUNT_NAME }}
+            STORAGE_ACCOUNT_KEY=${{ secrets.STORAGE_ACCOUNT_KEY }}
+              volume-mounts: |
+          mount-path: /mnt/storage
+          volume-name: storage-volume
+          storage-account-name: ${{ secrets.STORAGE_ACCOUNT_NAME }}
+          storage-account-key: ${{ secrets.STORAGE_ACCOUNT_KEY }}
+          container-name: dockeropdract
